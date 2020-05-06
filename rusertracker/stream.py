@@ -11,10 +11,17 @@ class Stream(object):
         self._subreddit = subreddit
 
     def userstream(self, skip_existing: bool=True) -> Iterator[Tuple[str, int, str]]:
+        # It is possible to interleave these two using pause_after=-1, which generates a None result after each batch
+        # returned by a request (including empty ones). Just hop between the two streams this way.
+        cstream = self._r.subreddit(self._subreddit).stream.comments(skip_existing=skip_existing, pause_after=-1)
+        sstream = self._r.subreddit(self._subreddit).stream.submissions(skip_existing=skip_existing, pause_after=-1)
         while True:
             try:
-                for comment in self._r.subreddit(self._subreddit).stream.comments(skip_existing=skip_existing):
-                    yield comment.author.name, int(comment.created_utc), comment.permalink
+                for stream in (cstream, sstream):
+                    for item in stream:
+                        if item is None:
+                            break
+                        yield item.author.name, int(item.created_utc), item.permalink
             except Exception as e:
                 self._logger.error(f"Encountered error while streaming: \"{e}\", sleeping 10 seconds...")
                 time.sleep(10)
