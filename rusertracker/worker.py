@@ -6,7 +6,8 @@ from rusertracker.stream import Stream
 
 
 class SubredditWorker(threading.Thread):
-    def __init__(self, evt: threading.Event, subreddit: str, user_agent: str, user: str, redis_kwargs: dict):
+    def __init__(self, evt: threading.Event, subreddit: str, user_agent: str, user: str, redis_kwargs: dict,
+                 ttl: int=7 * 86400):
         self._logger = logging.getLogger(f"rusertracker.worker.{subreddit}")
         self._evt = evt
         self._praw_args = (user,)
@@ -15,6 +16,7 @@ class SubredditWorker(threading.Thread):
         self._reddit = None
         self._stream = None
         self._redis = redis.Redis(**redis_kwargs)
+        self._ttl = ttl
         super().__init__()
         self.daemon = False
 
@@ -35,6 +37,7 @@ class SubredditWorker(threading.Thread):
                     break
                 self._logger.debug(username)
                 self._redis.set(f"{self._subreddit}|{username}", f"{timestamp}|{link}")
+                self._redis.expire(f"{self._subreddit}|{username}", self._ttl)
         except KeyboardInterrupt:
             pass
         self._logger.info("Stopped worker")
